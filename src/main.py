@@ -11,68 +11,72 @@ def load_words() -> list[tuple[list[int], str]]:
     return data
 
 
-# NOTICE: This function is currently unused
-def SABCM(string: str) -> int:
-    abc: str = "abcdefghijklmnopqrstuvwxyz"
-    for char in string:
-        abc = abc.replace(char, "1")
-    for i in abc:
-        if i != "1":
-            abc = abc.replace(i, "0")
-    return int(abc, 2)
+def wordlify(word: str, wordle_output: str) -> str:
+    cases: list[str] = ["🟥","🟨","🟩"]
+    length: int = len(word) + 4
+    wordle_output: str = ''.join(map((lambda x: cases[int(x)]), list(wordle_output)))
+    return rf"""
+        /{"="*length}\/{"="*(length + 5)}\
+        |{word.center(length)}||{wordle_output.center(length)}|
+        \{"="*length}/\{"="*(length + 5)}/
+    """
 
 
 def convert(phrase: str, wordle_output: str) -> tuple[list[int], list[int], list[tuple[int, int]]]:
-    cases: list[str] = ["🟥","🟨","🟩"]
-    wordle_output = wordle_output.replace("0", cases[0]).replace("1", cases[1]).replace("2", cases[2])
-    letters = []
-    must = []
-    ignore = []
+    letters, must, ignore = [], [], []
     for i,it in enumerate(wordle_output):
-        if it == cases[1]:
-            letters.append(phrase[i])
-        if it == cases[2]:
-            must.append((i, phrase[i]))
-        if it == cases[0]: 
-            ignore.append(phrase[i])
+        match it:
+            case "1":
+                letters.append(phrase[i])
+            case "2":
+                must.append((i, phrase[i]))
+            case "0": 
+                ignore.append(phrase[i])
 
     return (
         string_numerical_represent(letters),
         string_numerical_represent(ignore),
         [(index, string_numerical_represent(letter)[0]) for index,letter in must]
     )
-    
 
 
+# The filter function
+def word_filter(numerical_representation: list[int], ignore: list[int], letters: list[int], must: list[tuple[int, int]]) -> bool:
+    # Check if no character in `ignore` is in the word
+    if any(ch in ignore for ch in numerical_representation):
+        return False
+    # Check if all required letters are present somewhere in the word
+    if not all(letter in numerical_representation for letter in letters):
+        return False
+    # Check if `must` characters are in the correct positions
+    if not all(numerical_representation[ai] == aai for ai, aai in must):
+        return False
+    return True
 
-
-
+ 
 def main() -> None:
     words: list[tuple[list[int], str]] = load_words()
     phrase: str = input("start word? ")
     output: str = input("validity? ")
     letters, ignore, must = convert(phrase, output)
+    
     if len(phrase) != len(output):
-        exit()
-    log = [(output, phrase)]
-    x = time_ns()
-    words = [
-        (numerical_representation,word) for numerical_representation,word in words
-        if (
-            not any(map((lambda x: x in ignore), numerical_representation))  # if any characters in ignore are not present
-        ) and (
-            all(map((lambda x: x in numerical_representation), letters))  # if a character from letters is present somewhere
-        ) and (
-            # if characters from must are there and are in the correct position
-            sum(
-                (ai == i and aai == it)
-                for (ai, aai), (i, it) in zip(must, enumerate(numerical_representation))
-            ) >= len(must)
+        exit()  # Make sure the string length and the wordle output have the same length
+    start_time: int = time_ns()
+
+    # Apply filtering to words
+    filtered_words: list[tuple[list[int], str]] = [
+        (numerical_representation, word) for numerical_representation, word in words if word_filter(
+            numerical_representation,
+            ignore, letters, must
         )
     ]
-    print(*words, sep="\n")
-    print(len(words), must, letters, ignore, output, time_ns()-x)
+
+    print(len(filtered_words),"words |", f"{time_ns() - start_time}ns")
+    print(*[i[1] for i in filtered_words], sep="\n")
+    print(wordlify(phrase, output))
 
 
 if __name__ == "__main__":
     main()
+
